@@ -111,7 +111,7 @@ def test_cross_image_similarity(cfg_path=None, checkpoint_path=None):
     # Load checkpoint if provided
     if checkpoint_path and os.path.exists(checkpoint_path):
         print(f"Loading checkpoint from {checkpoint_path}")
-        checkpoint = torch.load(checkpoint_path, map_location=trainer.device, weights_only=True)
+        checkpoint = torch.load(checkpoint_path, map_location=trainer.device, weights_only=False)
         trainer.model.load_state_dict(checkpoint['model_state_dict'])
     
     # Run cross-image similarity test
