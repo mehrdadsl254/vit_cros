@@ -54,7 +54,7 @@ class TrainerCE:
         self.model = self.model.to(self.device)
         print(self.model)
         
-        self.optimizer = optim.Adam(self.model.parameters(), lr=cfg.trainer.learning_rate)
+        self.optimizer = optim.Adam(self.model.parameters(), lr=float(cfg.trainer.learning_rate))
         self.scheduler = StepLR(self.optimizer, step_size=cfg.trainer.scheduler.step_size, gamma=cfg.trainer.scheduler.gamma) 
         
         self.criterion = nn.BCEWithLogitsLoss()
