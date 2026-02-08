@@ -68,7 +68,7 @@ class TrainerCE:
             CHECKPOINT_PATH = os.path.join(output_dir, 'best_checkpoint.pth')
             
         if CHECKPOINT_PATH is not None and os.path.isfile(CHECKPOINT_PATH):
-            checkpoint = torch.load(CHECKPOINT_PATH, map_location=self.device, weights_only=True)
+            checkpoint = torch.load(CHECKPOINT_PATH, map_location=self.device, weights_only=False)
             self.model.load_state_dict(checkpoint['model_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
