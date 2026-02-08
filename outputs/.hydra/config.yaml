@@ -1,0 +1,51 @@
+mode: train
+seed: 0
+device: cpu
+trainer:
+  device: cpu
+  batch_size: 256
+  batch_size_val: 64
+  max_epoch: 16
+  learning_rate: 0.001
+  num_workers: 0
+  weight_decay: 0.01
+  scheduler:
+    step_size: 8
+    gamma: 0.2
+dataset:
+  name: ade20k
+  data_dir: /home/mmd/VIT/vit-object-binding/data
+  index: 10
+  train_ratio: 0.8
+  num_samples: 64
+model:
+  num_layer:
+  - 18
+  backbone_size: large
+  model_dir: /home/mmd/VIT/vit-object-binding/libs/dinov2
+  head_scale: 3
+  head_type: linear
+vis:
+  gif: true
+  mode: patch
+  patch_y: 10
+  patch_x: 18
+  window_idx: 0
+  object_idx: 1
+  head: -1
+probe:
+  mode: quadratic
+  in_dim: 1024
+  out_dim: 151
+seg:
+  class_weight: 2.0
+  mask_weight: 5.0
+  dice_weight: 5.0
+  num_queries: 100
+result_dir: /workspaces/results/
+output_dir: /home/mmd/VIT/vit-object-binding/outputs
+wandb:
+  entity: mehrdadslehi2-amirkabir-university-of-technology
+  project_name: vit
+  run_name: layer_${model.num_layer[0]}_probe_${probe.mode}
+image_path: /home/mmd/VIT/vit-object-binding/data/ADE20K_2021_17_01/images/ADE/validation/urban/abbey/ADE_val_00000001.jpg

@@ -1,0 +1,54 @@
+[2026-01-24 22:50:49,548][dinov2][INFO] - using MLP layer as FFN
+[2026-01-24 22:50:52,903][mmcv][INFO] - initialize BNHead with init_cfg {'type': 'Normal', 'std': 0.01, 'override': {'name': 'conv_seg'}}
+[2026-01-24 22:50:52,904][mmcv][INFO] - 
+decode_head.conv_seg.weight - torch.Size([150, 1024, 1, 1]): 
+NormalInit: mean=0, std=0.01, bias=0 
+ 
+[2026-01-24 22:50:52,904][mmcv][INFO] - 
+decode_head.conv_seg.bias - torch.Size([150]): 
+NormalInit: mean=0, std=0.01, bias=0 
+ 
+[2026-01-24 22:50:52,904][mmcv][INFO] - 
+decode_head.bn.weight - torch.Size([1024]): 
+The value is the same before and after calling `init_weights` of EncoderDecoder  
+ 
+[2026-01-24 22:50:52,904][mmcv][INFO] - 
+decode_head.bn.bias - torch.Size([1024]): 
+The value is the same before and after calling `init_weights` of EncoderDecoder  
+ 
+[2026-01-25 01:00:43,337][dinov2][INFO] - using MLP layer as FFN
+[2026-01-25 01:00:46,676][mmcv][INFO] - initialize BNHead with init_cfg {'type': 'Normal', 'std': 0.01, 'override': {'name': 'conv_seg'}}
+[2026-01-25 01:00:46,677][mmcv][INFO] - 
+decode_head.conv_seg.weight - torch.Size([150, 1024, 1, 1]): 
+NormalInit: mean=0, std=0.01, bias=0 
+ 
+[2026-01-25 01:00:46,677][mmcv][INFO] - 
+decode_head.conv_seg.bias - torch.Size([150]): 
+NormalInit: mean=0, std=0.01, bias=0 
+ 
+[2026-01-25 01:00:46,677][mmcv][INFO] - 
+decode_head.bn.weight - torch.Size([1024]): 
+The value is the same before and after calling `init_weights` of EncoderDecoder  
+ 
+[2026-01-25 01:00:46,677][mmcv][INFO] - 
+decode_head.bn.bias - torch.Size([1024]): 
+The value is the same before and after calling `init_weights` of EncoderDecoder  
+ 
+[2026-01-25 01:01:41,872][dinov2][INFO] - using MLP layer as FFN
+[2026-01-25 01:01:45,260][mmcv][INFO] - initialize BNHead with init_cfg {'type': 'Normal', 'std': 0.01, 'override': {'name': 'conv_seg'}}
+[2026-01-25 01:01:45,261][mmcv][INFO] - 
+decode_head.conv_seg.weight - torch.Size([150, 1024, 1, 1]): 
+NormalInit: mean=0, std=0.01, bias=0 
+ 
+[2026-01-25 01:01:45,261][mmcv][INFO] - 
+decode_head.conv_seg.bias - torch.Size([150]): 
+NormalInit: mean=0, std=0.01, bias=0 
+ 
+[2026-01-25 01:01:45,261][mmcv][INFO] - 
+decode_head.bn.weight - torch.Size([1024]): 
+The value is the same before and after calling `init_weights` of EncoderDecoder  
+ 
+[2026-01-25 01:01:45,261][mmcv][INFO] - 
+decode_head.bn.bias - torch.Size([1024]): 
+The value is the same before and after calling `init_weights` of EncoderDecoder  
+ 
