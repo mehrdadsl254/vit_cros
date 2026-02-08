@@ -1,3 +1,10 @@
+import sys
+import os
+# sys.path.append("/home/mmd/VIT/vit-object-binding/libs/dinov2")
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "libs/dinov2"))
+import dinov2.eval.segmentation.models
+
+import dinov2.eval.segmentation.models.backbones.vision_transformer
 import torch
 from torch.utils.data import Dataset
 
@@ -18,7 +25,8 @@ from .segment import create_segmenter, render_segmentation, inference_segmentor,
 from .transforms import forward_transform, distance_point_to_bbox, inverse_transform
 import matplotlib.pyplot as plt
 
-sys.path.append('/workspaces/003/')
+# sys.path.append('/workspaces/003/')
+sys.path.append(os.path.dirname(os.path.dirname(__file__))) # Add src to path for libs import
 from libs.ADE20K.utils import utils_ade20k
 
 activations = {}
@@ -125,9 +133,8 @@ class FeatureExtractor():
         HEAD_DATASET = cfg.dataset.name # in ("ade20k", "voc2012")
         HEAD_TYPE = cfg.model.head_type # in ("ms, "linear")
 
-        DINOV2_BASE_URL = "https://dl.fbaipublicfiles.com/dinov2"
-        head_config_url = f"{DINOV2_BASE_URL}/{backbone_name}/{backbone_name}_{HEAD_DATASET}_{HEAD_TYPE}_config.py"
-        head_checkpoint_url = f"{DINOV2_BASE_URL}/{backbone_name}/{backbone_name}_{HEAD_DATASET}_{HEAD_TYPE}_head.pth"
+        head_config_path = "/home/mmd/VIT/vit-object-binding2/weights/checkpoints/dinov2_config.py"
+        head_checkpoint_url = "/home/mmd/VIT/vit-object-binding2/weights/checkpoints/dinov2_vitl14_ade20k_linear_head.pth"
 
         DATASET_COLORMAPS = {
             "ade20k": colormaps.ADE20K_COLORMAP,
@@ -138,8 +145,19 @@ class FeatureExtractor():
         self.backbone_model.eval()
         self.backbone_model.to(cfg.trainer.device)
         
-        cfg_str = load_config_from_url(head_config_url)
+        # cfg_str = load_config_from_url(head_config_url)
+        with open(head_config_path, "r") as f:
+            cfg_str = f.read()
         mmcfg = mmcv.Config.fromstring(cfg_str, file_format=".py")
+
+        # --- FIX: Force use of standard BatchNorm (BN) instead of SyncBatchNorm (SyncBN) ---
+        # SyncBN requires CUDA and typically DistributedDataParallel, causing crashes in simple inference or CPU mode.
+        if mmcfg.get('norm_cfg'):
+            mmcfg.norm_cfg['type'] = 'BN'
+        if mmcfg.model.get('decode_head') and mmcfg.model.decode_head.get('norm_cfg'):
+            mmcfg.model.decode_head.norm_cfg['type'] = 'BN'
+        # -----------------------------------------------------------------------------------
+
         self.mmcfg = mmcfg #crop_size (512,512); stride (341, 341)
         
         self.model = create_segmenter(mmcfg, backbone_model=self.backbone_model)
@@ -197,7 +215,7 @@ class FeatureExtractor():
                 patch_type_unfolded = patch_type_unfolded.reshape(N, H // 14, W // 14, 14 * 14)
                 patch_modes_type, _ = torch.mode(patch_type_unfolded, dim=-1)
                 
-                patch_modes_type = self.class_mapping[patch_modes_type]
+                patch_modes_type = self.class_mapping[patch_modes_type.long()]
                 sample_indices = torch.randint(0, patch_length*patch_length, (half_sample_size,))
 
                 labels[idx*half_sample_size:(idx+1)*half_sample_size] = patch_modes.reshape(-1)[sample_indices]
@@ -255,6 +273,119 @@ class FeatureExtractor():
         labels = torch.stack(labels_list)
         labels_type = torch.stack(labels_type_list)
         return features, labels, labels_type
+    
+    def forward_per_object(self, imgs, masks, bboxes):
+        """
+        Extract features per object for cross-image similarity computation.
+        Input: batch data, Output: features_per_object_list [list of [num_objects, C]], object_ids_list [list of object_ids]
+        """
+        patch_size = self.patch_size
+        
+        patch_features_list = []
+        patch_labels_list = []
+        
+        for idx, (image, mask, bbox) in enumerate(zip(imgs, masks, bboxes)):
+            activations[str(self.cfg.model.num_layer[0])] = [] # reset buffer
+            
+            segmentation_logits = inference_segmentor(self.model, image)[0]
+            segmented_image = render_segmentation(segmentation_logits, self.cfg.dataset.name, self.colormap)
+            
+            activation = activations[str(self.cfg.model.num_layer[0])]
+# Allow single-window activations; just require at least one
+            if len(activation) == 0:
+                print(f"Warning: No activation windows for image {idx}")
+                continue
+            
+            patch_length = int(math.sqrt(activation[0].shape[1]))
+            C = activation[0].shape[-1]
+            
+            # Get unique object IDs from bbox (instance mask)
+            if isinstance(bbox, np.ndarray):
+                unique_objects = np.unique(bbox)
+            else:
+                unique_objects = torch.unique(torch.tensor(bbox)).numpy()
+            unique_objects = unique_objects[unique_objects > 0]  # Exclude background
+            
+            if len(unique_objects) == 0:
+                print(f"Warning: No objects found in image {idx}")
+                continue
+            
+            # GROUND-TRUTH instance mask - convert to tensor if needed
+            if isinstance(bbox, np.ndarray):
+                # Ensure torch-compatible dtype
+                bbox_tensor = torch.from_numpy(bbox.astype(np.int32)).unsqueeze(0).unsqueeze(0)
+            else:
+                bbox_tensor = bbox.unsqueeze(0).unsqueeze(0) if bbox.dim() == 2 else bbox
+
+            # forward_transform expects (H, W) mask; squeeze to 2D
+            bbox_np_2d = bbox_tensor.squeeze().cpu().numpy().astype(np.int32)
+            
+            patch_labels = forward_transform(
+                self.mmcfg.model.test_cfg.crop_size,
+                self.mmcfg.model.test_cfg.stride,
+                self.patch_size,
+                bbox_np_2d,
+            )
+
+
+            
+                       # Collect all patch features with their object labels
+            all_patch_features = []
+            all_patch_labels = []
+            
+            for patch_idx, patch_label in enumerate(patch_labels):
+                # Some configs produce fewer activation windows than mask windows;
+                # skip any mask window that doesn't have a corresponding activation.
+                if patch_idx >= len(activation):
+                    continue
+                patch_label = patch_label.squeeze(1)  # Shape: (1, H, W)
+                N, H, W = patch_label.shape
+                
+                # Ensure dimensions are divisible by 14
+                if H % 14 != 0 or W % 14 != 0:
+                    # Pad if necessary
+                    pad_h = (14 - H % 14) % 14
+                    pad_w = (14 - W % 14) % 14
+                    patch_label = torch.nn.functional.pad(patch_label, (0, pad_w, 0, pad_h), mode='constant', value=0)
+                    H, W = patch_label.shape[1], patch_label.shape[2]
+                
+                patch_label_unfolded = patch_label.unfold(1, 14, 14).unfold(2, 14, 14)
+                patch_label_unfolded = patch_label_unfolded.reshape(N, H // 14, W // 14, 14 * 14)
+                patch_modes, _ = torch.mode(patch_label_unfolded, dim=-1)  # [N, H//14, W//14]
+                
+                # Get all patch features from this window (excluding CLS token)
+                # activation[patch_idx] shape: [1, num_patches+1, C]
+                num_patches_available = activation[patch_idx].shape[1] - 1
+                patch_features = activation[patch_idx][0, 1:num_patches_available+1]  # [num_patches, C]
+                
+                # Flatten patch labels to match patch features
+                patch_labels_flat = patch_modes.reshape(-1)  # [num_patches]
+                
+                # Only keep patches that belong to an object (non-zero label)
+                valid_mask = patch_labels_flat > 0
+                if valid_mask.sum() > 0:
+                    # Truncate to available patches
+                    num_patches_in_window = min(len(patch_labels_flat), num_patches_available)
+                    patch_features = patch_features[:num_patches_in_window]
+                    patch_labels_flat = patch_labels_flat[:num_patches_in_window]
+                    valid_mask = valid_mask[:num_patches_in_window]
+                    
+                    all_patch_features.append(patch_features[valid_mask])
+                    all_patch_labels.append(patch_labels_flat[valid_mask])
+            
+            if len(all_patch_features) > 0:
+                # Concatenate all patches from all windows
+                patch_features = torch.cat(all_patch_features, dim=0)  # [total_patches, C]
+                patch_labels = torch.cat(all_patch_labels, dim=0)  # [total_patches]
+                
+                patch_features_list.append(patch_features)
+                patch_labels_list.append(patch_labels)
+            else:
+                print(f"Warning: No patch features extracted for image {idx}")
+        
+        return patch_features_list, patch_labels_list
+
+
 
 
 def collate_fn(batch):
@@ -276,4 +407,3 @@ if __name__ == '__main__':
     print(len(dataset))
     for i in tqdm(range(len(dataset))):
         data = dataset[i]
-    
