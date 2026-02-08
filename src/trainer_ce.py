@@ -243,12 +243,15 @@ class TrainerCE:
 
 
     
-    def test_cross_image_similarity(self, cfg, image1_path=None, image2_path=None, masks=None, bboxes=None):
+    def test_cross_image_similarity(self, cfg, image1_path=None, image2_path=None, masks=None, bboxes=None, metric='probe'):
         """
         Test cross-image pairwise similarity between two images.
         
-        For image1 with objects [A, B, C, D] and image2 with objects [D, C, B, A],
-        compute similarity matrix where rows are objects from image1 and columns are objects from image2.
+        Args:
+            cfg: Config object
+            image1_path, image2_path: Paths to images
+            masks, bboxes: Segmentation masks and bounding boxes
+            metric: 'probe' (default) or 'cosine'
         
         Returns:
             similarity_matrix: [4, 4] tensor where similarity_matrix[i, j] is the average similarity
@@ -259,7 +262,7 @@ class TrainerCE:
         
         # If paths are provided, load images directly
         if image1_path and image2_path and masks is not None and bboxes is not None:
-            print("thats okkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk")
+            # print("thats okkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk")
             img1 = cv2.imread(image1_path)[:, :, ::-1]  # BGR to RGB
             img2 = cv2.imread(image2_path)[:, :, ::-1]
 
@@ -268,7 +271,7 @@ class TrainerCE:
             bboxes = bboxes
 
         elif image1_path and image2_path:
-            print("fucking no wayyyyyyyyyyyyyyyyyyyyyyyyy")
+            # print("fucking no wayyyyyyyyyyyyyyyyyyyyyyyyy")
             img1 = cv2.imread(image1_path)[:, :, ::-1]  # BGR to RGB
             img2 = cv2.imread(image2_path)[:, :, ::-1]
             
@@ -329,13 +332,23 @@ class TrainerCE:
             # Compute patch-to-patch similarity matrix
             # patch_features_img1: [P1, C], patch_features_img2: [P2, C]
             # We want: [P1, P2] similarity matrix
-            patch_similarity = compute_batch_pairwise_similarity(
-                self.model, 
-                patch_features_img1.unsqueeze(0),  # [1, P1, C]
-                patch_features_img2.unsqueeze(0)    # [1, P2, C]
-            )  # [1, P1, P2]
             
-            patch_similarity_matrix = patch_similarity.squeeze(0)  # [P1, P2]
+            if metric == 'cosine':
+                print("Computing Cosine Similarity...")
+                # Normalize features
+                feat1_norm = F.normalize(patch_features_img1, p=2, dim=1)
+                feat2_norm = F.normalize(patch_features_img2, p=2, dim=1)
+                # Compute cosine similarity
+                patch_similarity_matrix = torch.mm(feat1_norm, feat2_norm.t()) # [P1, P2]
+            else:
+                print("Computing Probe-based Similarity...")
+                patch_similarity = compute_batch_pairwise_similarity(
+                    self.model, 
+                    patch_features_img1.unsqueeze(0),  # [1, P1, C]
+                    patch_features_img2.unsqueeze(0)    # [1, P2, C]
+                )  # [1, P1, P2]
+                patch_similarity_matrix = patch_similarity.squeeze(0)  # [P1, P2]
+            
             print(f"Patch-to-patch similarity matrix shape: {patch_similarity_matrix.shape}")
             
             # Get unique object IDs from both images

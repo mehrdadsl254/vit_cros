@@ -58,7 +58,7 @@ def create_simple_test_images(output_dir):
     
     return img1_path, img2_path
 
-def test_cross_image_similarity(cfg_path=None, checkpoint_path=None):
+def test_cross_image_similarity(cfg_path=None, checkpoint_path=None, metric='probe'):
     """
     Main test function for cross-image similarity.
     """
@@ -116,7 +116,7 @@ def test_cross_image_similarity(cfg_path=None, checkpoint_path=None):
     
     # Run cross-image similarity test
     print("\n" + "="*50)
-    print("Running Cross-Image Similarity Test")
+    print(f"Running Cross-Image Similarity Test using {metric} metric")
     print("="*50)
 
     similarity_matrix, mapping_info = trainer.test_cross_image_similarity(
@@ -125,6 +125,7 @@ def test_cross_image_similarity(cfg_path=None, checkpoint_path=None):
         image2_path=str(img2_path),
         masks=[class_mask1, class_mask2],
         bboxes=[instance_mask1, instance_mask2],
+        metric=metric
     )
     
     if similarity_matrix is not None:
@@ -150,7 +151,9 @@ def test_cross_image_similarity(cfg_path=None, checkpoint_path=None):
             print("\n✗ WARNING: Some incorrect matches have higher similarity than correct ones.")
         
         # Save results
-        results_path = os.path.join(output_dir, "cross_image_similarity_results.npz")
+        # Append metric name to filename to avoid overwriting
+        metric_suffix = f"_{metric}"
+        results_path = os.path.join(output_dir, f"cross_image_similarity_results{metric_suffix}.npz")
         np.savez(
             results_path,
             similarity_matrix=similarity_np,
@@ -170,11 +173,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Test cross-image similarity")
     parser.add_argument("--config", type=str, default=None, help="Path to config file")
     parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint")
+    parser.add_argument("--metric", type=str, default='probe', choices=['probe', 'cosine'], 
+                        help="Similarity metric: 'probe' (default) or 'cosine'")
     
     args = parser.parse_args()
     
     test_cross_image_similarity(
         cfg_path=args.config,
-        checkpoint_path=args.checkpoint
+        checkpoint_path=args.checkpoint,
+        metric=args.metric
     )
 
